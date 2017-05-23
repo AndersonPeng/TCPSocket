@@ -30,6 +30,9 @@ MainWindow::MainWindow(QWidget *parent) :
     clientSocket = new TCPClient();
     serverSocket = new TCPServer();
     clientIndex = -1;
+    prevSize = 0;
+    deltaSize = 0;
+    deltaTime = 1000;       //ms
 
 
     //Get local ip addresses
@@ -67,7 +70,6 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(dropArea, SIGNAL(changed(const QMimeData*)), this, SLOT(setFileUrl(const QMimeData*)));
     connect(ui->actionRestart, SIGNAL(triggered()), this, SLOT(reboot()));
-
 }
 
 
@@ -144,7 +146,7 @@ void MainWindow::serverListen()
     serverSocket->moveToThread(thread);
     connect(thread, SIGNAL(started()), serverSocket, SLOT(acceptClient()));
     connect(serverSocket, SIGNAL(acceptClientEnd()), thread, SLOT(quit()));       //Shut down thread
-    connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));       //Delete thread when it is shut down
+    connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));             //Delete thread when it is shut down
     thread->start();
 }
 
@@ -176,6 +178,16 @@ void MainWindow::clientUpload()
 
 
 /*===============================
+SLOT: Client resume to do someting
+===============================*/
+void MainWindow::clientResume()
+{
+    setClientStatLabel("Client ready");
+    connect(ui->clientUploadBtn, SIGNAL(clicked()), this, SLOT(clientUpload()));
+}
+
+
+/*===============================
 SLOT: client get a response
 ===============================*/
 void MainWindow::onClientGetRes(char req, char res)
@@ -190,11 +202,13 @@ void MainWindow::onClientGetRes(char req, char res)
             sender->setFilename(fileUrlList.at(0).toLocalFile());
             sender->moveToThread(thread);
             connect(sender, SIGNAL(error(QString)), this, SLOT(setClientStatLabel(QString)));
-            connect(sender, SIGNAL(progress(ulong,ulong)), this, SLOT(onClientProgress(ulong,ulong)));
+            connect(sender, SIGNAL(progress(unsigned long long, unsigned long long)), this, SLOT(onClientProgress(unsigned long long, unsigned long long)));
             connect(thread, SIGNAL(started()), sender, SLOT(sendFile()));
             connect(sender, SIGNAL(sendFileEnd()), thread, SLOT(quit()));
+            connect(sender, SIGNAL(sendFileEnd()), this, SLOT(clientResume()));
             connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
             thread->start();
+            startTimer(deltaTime);
         }
         else if(req == REQ_DOWNLOAD){
             setClientStatLabel("Start to download...");
@@ -227,11 +241,12 @@ void MainWindow::onServerGetReq(char req)
         receiver->setSocket(serverSocket->getClientSocket(clientIndex));
         receiver->moveToThread(thread);
         connect(receiver, SIGNAL(error(QString)), this, SLOT(setServerStatLabel(QString)));
-        connect(receiver, SIGNAL(progress(ulong,ulong)), this, SLOT(onServerProgress(ulong,ulong)));
+        connect(receiver, SIGNAL(progress(unsigned long long, unsigned long long)), this, SLOT(onServerProgress(unsigned long long, unsigned long long)));
         connect(thread, SIGNAL(started()), receiver, SLOT(recvFile()));
         connect(receiver, SIGNAL(recvFileEnd()), thread, SLOT(quit()));
         connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
         thread->start();
+        startTimer(deltaTime);
     }
     else
         setServerStatLabel("Wrong request");
@@ -313,22 +328,28 @@ void MainWindow::onServerConnected(int clientIndex)
 /*===============================
 SLOT: when there is a progress
 ===============================*/
-void MainWindow::onClientProgress(unsigned long curSize, unsigned long totalSize)
+void MainWindow::onClientProgress(unsigned long long curSize, unsigned long long totalSize)
 {
     ui->clientProgBar->setValue((float)curSize / (float)totalSize * 100);
     ui->clientProgBar->repaint();
-    setClientStatLabel(QString("%1/%2").arg(curSize).arg(totalSize));
+    setClientStatLabel(QString("%1/%2 Byte").arg(curSize).arg(totalSize));
+
+    deltaSize += curSize - prevSize;
+    prevSize = curSize;
 }
 
 
 /*===============================
 SLOT: when there is a progress
 ===============================*/
-void MainWindow::onServerProgress(unsigned long curSize, unsigned long totalSize)
+void MainWindow::onServerProgress(unsigned long long curSize, unsigned long long totalSize)
 {
     ui->serverProgBar->setValue((float)curSize / (float)totalSize * 100);
     ui->serverProgBar->repaint();
-    setServerStatLabel(QString("%1/%2").arg(curSize).arg(totalSize));
+    setServerStatLabel(QString("%1/%2 Byte").arg(curSize).arg(totalSize));
+
+    deltaSize += curSize - prevSize;
+    prevSize = curSize;
 }
 
 
@@ -338,4 +359,20 @@ SLOT: reboot application
 void MainWindow::reboot()
 {
     qApp->exit(MainWindow::EXIT_CODE_REBOOT);
+}
+
+
+/*===============================
+QT EVENT: timer
+===============================*/
+void MainWindow::timerEvent(QTimerEvent *e)
+{
+    Q_UNUSED(e);
+
+    float bps = (float)deltaSize / (float)deltaTime;
+    if(bps < 1000) ui->clientBPSLabel->setText(QString("%1 KB/s").arg(bps, 0, 'f', 2));
+    else ui->clientBPSLabel->setText(QString("%1 MB/s").arg(bps / 1000, 0, 'f', 2));
+
+    ui->clientBPSLabel->repaint();
+    deltaSize = 0;
 }

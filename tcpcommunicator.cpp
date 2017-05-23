@@ -65,8 +65,8 @@ void TCPCommunicator::sendFile()
     }
 
     char buf[65536] = {0};
-    unsigned long dataSize = 0;
-    quint64 curSize = 0;
+    unsigned long long dataSize = 0;
+    unsigned long long curSize = 0;
     fileInfo info;
 
     info.size = file.size();
@@ -126,8 +126,8 @@ SLOT: Recv a file through TCP
 void TCPCommunicator::recvFile()
 {
     char buf[65536] = {0};
-    unsigned long dataSize = 0;
-    quint64 curSize = 0;
+    unsigned long long dataSize = 0;
+    unsigned long long curSize = 0;
     fileInfo info;
 
 

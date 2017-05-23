@@ -24,12 +24,18 @@ public:
 
     static const int EXIT_CODE_REBOOT;
 
+
+protected:
+    void timerEvent(QTimerEvent *e);
+
+
 signals:
 
 
 private slots:
     void clientConnect();
     void clientUpload();
+    void clientResume();
     void onClientConnected();
     void onClientGetRes(char req, char res);
 
@@ -40,8 +46,8 @@ private slots:
     void setFileUrl(const QMimeData *mimeData);
     void setServerStatLabel(QString msg);
     void setClientStatLabel(QString msg);
-    void onClientProgress(unsigned long curSize, unsigned long totalSize);
-    void onServerProgress(unsigned long curSize, unsigned long totalSize);
+    void onClientProgress(unsigned long long curSize, unsigned long long totalSize);
+    void onServerProgress(unsigned long long curSize, unsigned long long totalSize);
 
     void reboot();
 
@@ -54,6 +60,8 @@ private:
     DropArea *dropArea;
     QList<QUrl> fileUrlList;
     int clientIndex;
+    float deltaTime;
+    unsigned long long prevSize, deltaSize;
 };
 
 #endif // MAINWINDOW_H

@@ -42,7 +42,7 @@ public slots:
 
 signals:
     void error(QString err);
-    void progress(unsigned long curSize, unsigned long totalSize);
+    void progress(unsigned long long curSize, unsigned long long totalSize);
     void response(char req, char res);
     void sendFileEnd();
     void recvFileEnd();
